@@ -14,6 +14,7 @@ final class MenuBuilder: NSObject {
     private var ipv4RowView:    MenuInfoRowView?
     private var ipv6RowView:    MenuInfoRowView?
     private var gatewayRowView: MenuInfoRowView?
+    private var tracerouteRowView: MenuActionRowView?
 
     private var ipv4MenuItem:            NSMenuItem?
     private var ipv6MenuItem:            NSMenuItem?
@@ -44,6 +45,7 @@ final class MenuBuilder: NSObject {
     var onRefreshSpeed:  (() -> Void)?
     var onOpenSettings:  (() -> Void)?
     var onQuit:          (() -> Void)?
+    var onTraceroute:    (() -> Void)?
 
     // MARK: - Build
 
@@ -136,6 +138,14 @@ final class MenuBuilder: NSObject {
         m.addItem(.separator())
         m.addItem(makeSectionItem(title: "DIAGNOSTICS"))
 
+        let traceRow = MenuActionRowView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.rowHeight))
+        traceRow.configure(label: "Traceroute", detail: ConnectivityChecker.tracerouteHost)
+        traceRow.onAction = { [weak self] in self?.onTraceroute?() }
+        tracerouteRowView = traceRow
+        let traceItem = NSMenuItem()
+        traceItem.view = traceRow
+        m.addItem(traceItem)
+
         // 6. Footer
         let footer = MenuFooterView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: 44))
         footer.onSettings = { [weak self] in self?.onOpenSettings?() }
@@ -219,6 +229,10 @@ final class MenuBuilder: NSObject {
         }
 
         renderedDNSServers = servers
+    }
+
+    func updateTracerouteTarget(_ host: String) {
+        tracerouteRowView?.configure(label: "Traceroute", detail: host)
     }
 
     // MARK: - Visibility Preferences

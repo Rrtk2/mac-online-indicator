@@ -131,6 +131,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
         menuBuilder.onRefreshSpeed = { AppState.shared.forceRefreshSpeed() }
         menuBuilder.onOpenSettings = { [weak self] in self?.windowCoordinator.openSettings() }
         menuBuilder.onQuit         = { NSApplication.shared.terminate(nil) }
+        menuBuilder.onTraceroute = { [weak self] in
+            guard let self else { return }
+            self.statusItem.menu?.cancelTracking()
+            self.windowCoordinator.openTraceroute(to: ConnectivityChecker.tracerouteHost)
+        }
 
         let menu = menuBuilder.build()
         menu.delegate = self
@@ -165,6 +170,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
         // Menu open always gets a fresh snapshot — this is a user-initiated action.
         let addresses = IPAddressProvider.current()
         updateMenuAddresses(addresses)
+        menuBuilder.updateTracerouteTarget(ConnectivityChecker.tracerouteHost)
         fetchExternalData()
         menuBuilder.applyVisibilityPreferences()
     }

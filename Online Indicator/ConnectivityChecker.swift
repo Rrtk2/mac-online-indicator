@@ -9,6 +9,16 @@ final class ConnectivityChecker {
         return saved.isEmpty ? defaultURLString : saved
     }
 
+    /// Host used for outbound diagnostics such as traceroute.
+    static var tracerouteHost: String {
+        guard let url = URL(string: monitoringURLString),
+              let host = url.host,
+              !host.isEmpty else {
+            return "captive.apple.com"
+        }
+        return host
+    }
+
     private var currentTask: URLSessionDataTask?
 
     private let session: URLSession = {

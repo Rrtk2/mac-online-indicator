@@ -3,10 +3,13 @@ import SwiftUI
 
 /// Manages the lifecycle of the onboarding and settings windows.
 /// Conforms to NSWindowDelegate to nil-out the settings window reference on close.
+@MainActor
 final class WindowCoordinator: NSObject, NSWindowDelegate {
 
     private var onboardingWindow: NSWindow?
     private var settingsWindow: NSWindow?
+    private var tracerouteWindow: NSWindow?
+    private var tracerouteSession: TracerouteSession?
 
     /// Wired by `AppDelegate` to Sparkle’s manual “Check for Updates” action.
     var onCheckForSparkleUpdates: (() -> Void)?
@@ -55,11 +58,35 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         bringSettingsWindowToFront(window)
     }
 
+    func openTraceroute(to host: String) {
+        tracerouteSession?.cancel()
+        tracerouteWindow?.close()
+
+        let session = TracerouteSession(host: host)
+        tracerouteSession = session
+
+        let window = makeWindow(
+            size: NSSize(width: 520, height: 420),
+            styleMask: [.titled, .closable, .resizable]
+        )
+        window.title = "Traceroute"
+        window.contentView = NSHostingView(rootView: TracerouteView(session: session))
+        window.delegate = self
+        tracerouteWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
         if (notification.object as? NSWindow) === settingsWindow {
             settingsWindow = nil
+        }
+        if (notification.object as? NSWindow) === tracerouteWindow {
+            tracerouteSession?.cancel()
+            tracerouteSession = nil
+            tracerouteWindow = nil
         }
     }
 
