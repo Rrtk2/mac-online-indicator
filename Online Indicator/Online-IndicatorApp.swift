@@ -17,6 +17,7 @@ struct OnlineIndicatorApp: App {
 
 // MARK: - App Delegate
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationManagerDelegate {
 
     private var statusItem: NSStatusItem!
