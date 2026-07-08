@@ -2,12 +2,14 @@ import SwiftUI
 import Combine
 
 @MainActor
-final class TracerouteSession: ObservableObject {
+final class TracerouteSession: DiagnosticSession {
 
     @Published private(set) var output = ""
     @Published private(set) var isRunning = false
 
     let host: String
+    var subtitle: String { host }
+
     private let runner = TracerouteRunner()
 
     init(host: String) {
@@ -41,37 +43,6 @@ struct TracerouteView: View {
     @ObservedObject var session: TracerouteSession
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Traceroute")
-                    .font(.headline)
-                Spacer()
-                if session.isRunning {
-                    Button("Cancel") { session.cancel() }
-                }
-                Button("Copy") { copyOutput() }
-                    .disabled(session.output.isEmpty)
-            }
-
-            Text(session.host)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            ScrollView {
-                Text(session.output)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(16)
-        .frame(minWidth: 480, minHeight: 360)
-        .onAppear { session.start() }
-        .onDisappear { session.cancel() }
-    }
-
-    private func copyOutput() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(session.output, forType: .string)
+        DiagnosticOutputView(title: "Traceroute", session: session)
     }
 }

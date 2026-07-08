@@ -1,18 +1,18 @@
 import Foundation
 
-/// Runs `/usr/sbin/traceroute` off the main thread and streams stdout/stderr.
-final class TracerouteRunner {
+/// Runs `/sbin/ping` off the main thread and streams stdout/stderr.
+final class PingRunner {
 
-    private let runner = DiagnosticProcessRunner(label: "com.onlineindicator.traceroute")
+    private let runner = DiagnosticProcessRunner(label: "com.onlineindicator.ping")
 
     func run(
-        host: String,
+        gateway: String,
         onOutput: @escaping @MainActor (String) -> Void,
         onComplete: @escaping @MainActor (Int32) -> Void
     ) {
         runner.run(
-            executable: "/usr/sbin/traceroute",
-            arguments: ["-m", "30", host],
+            executable: "/sbin/ping",
+            arguments: ["-c", "10", "-W", "2000", gateway],
             onOutput: onOutput,
             onComplete: onComplete
         )

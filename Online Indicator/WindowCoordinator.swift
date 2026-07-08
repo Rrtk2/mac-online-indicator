@@ -8,8 +8,8 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
 
     private var onboardingWindow: NSWindow?
     private var settingsWindow: NSWindow?
-    private var tracerouteWindow: NSWindow?
-    private var tracerouteSession: TracerouteSession?
+    private var diagnosticWindow: NSWindow?
+    private var diagnosticSession: (any DiagnosticSession)?
 
     /// Wired by `AppDelegate` to Sparkle’s manual “Check for Updates” action.
     var onCheckForSparkleUpdates: (() -> Void)?
@@ -58,23 +58,34 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         bringSettingsWindowToFront(window)
     }
 
+    // MARK: - Diagnostics
+
     func openTraceroute(to host: String) {
-        tracerouteSession?.cancel()
-        tracerouteWindow?.close()
-
         let session = TracerouteSession(host: host)
-        tracerouteSession = session
+        openDiagnostic(title: "Traceroute", session: session) {
+            TracerouteView(session: session)
+        }
+    }
 
-        let window = makeWindow(
-            size: NSSize(width: 520, height: 420),
-            styleMask: [.titled, .closable, .resizable]
-        )
-        window.title = "Traceroute"
-        window.contentView = NSHostingView(rootView: TracerouteView(session: session))
-        window.delegate = self
-        tracerouteWindow = window
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+    func openDNSLookup(to host: String) {
+        let session = DNSLookupSession(host: host)
+        openDiagnostic(title: "DNS Lookup", session: session) {
+            DNSLookupView(session: session)
+        }
+    }
+
+    func openPing(to gateway: String?) {
+        let session = PingSession(gateway: gateway)
+        openDiagnostic(title: "Ping", session: session) {
+            PingView(session: session)
+        }
+    }
+
+    func openTCPPortCheck(host: String, port: Int) {
+        let session = TCPConnectSession(host: host, port: port)
+        openDiagnostic(title: "TCP Port Check", session: session) {
+            TCPConnectView(session: session)
+        }
     }
 
     // MARK: - NSWindowDelegate
@@ -83,14 +94,36 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         if (notification.object as? NSWindow) === settingsWindow {
             settingsWindow = nil
         }
-        if (notification.object as? NSWindow) === tracerouteWindow {
-            tracerouteSession?.cancel()
-            tracerouteSession = nil
-            tracerouteWindow = nil
+        if (notification.object as? NSWindow) === diagnosticWindow {
+            diagnosticSession?.cancel()
+            diagnosticSession = nil
+            diagnosticWindow = nil
         }
     }
 
     // MARK: - Private
+
+    private func openDiagnostic<Session: DiagnosticSession, Content: View>(
+        title: String,
+        session: Session,
+        @ViewBuilder content: () -> Content
+    ) {
+        diagnosticSession?.cancel()
+        diagnosticWindow?.close()
+
+        diagnosticSession = session
+
+        let window = makeWindow(
+            size: NSSize(width: 520, height: 420),
+            styleMask: [.titled, .closable, .resizable]
+        )
+        window.title = title
+        window.contentView = NSHostingView(rootView: content())
+        window.delegate = self
+        diagnosticWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
 
     private func makeWindow(size: NSSize, styleMask: NSWindow.StyleMask) -> NSWindow {
         let window = NSWindow(

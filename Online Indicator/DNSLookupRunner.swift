@@ -1,9 +1,9 @@
 import Foundation
 
-/// Runs `/usr/sbin/traceroute` off the main thread and streams stdout/stderr.
-final class TracerouteRunner {
+/// Runs `/usr/bin/dig` off the main thread and streams stdout/stderr.
+final class DNSLookupRunner {
 
-    private let runner = DiagnosticProcessRunner(label: "com.onlineindicator.traceroute")
+    private let runner = DiagnosticProcessRunner(label: "com.onlineindicator.dnslookup")
 
     func run(
         host: String,
@@ -11,8 +11,8 @@ final class TracerouteRunner {
         onComplete: @escaping @MainActor (Int32) -> Void
     ) {
         runner.run(
-            executable: "/usr/sbin/traceroute",
-            arguments: ["-m", "30", host],
+            executable: "/usr/bin/dig",
+            arguments: ["+time=2", "+tries=1", host, "A", "AAAA"],
             onOutput: onOutput,
             onComplete: onComplete
         )

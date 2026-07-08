@@ -19,6 +19,18 @@ final class ConnectivityChecker {
         return host
     }
 
+    /// TCP port derived from the monitoring URL (explicit port, else 80 for http / 443 otherwise).
+    static var diagnosticPort: Int {
+        guard let url = URL(string: monitoringURLString) else { return 443 }
+        if let port = url.port { return port }
+        return url.scheme?.lowercased() == "http" ? 80 : 443
+    }
+
+    /// Host:port label for diagnostics menu rows.
+    static var diagnosticEndpoint: String {
+        "\(tracerouteHost):\(diagnosticPort)"
+    }
+
     private var currentTask: URLSessionDataTask?
 
     private let session: URLSession = {
