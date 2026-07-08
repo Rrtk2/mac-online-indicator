@@ -132,7 +132,11 @@ final class MenuBuilder: NSObject {
         dnsItem.tag  = dnsTag
         m.addItem(dnsItem)
 
-        // 5. Footer
+        // 5. DIAGNOSTICS section
+        m.addItem(.separator())
+        m.addItem(makeSectionItem(title: "DIAGNOSTICS"))
+
+        // 6. Footer
         let footer = MenuFooterView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: 44))
         footer.onSettings = { [weak self] in self?.onOpenSettings?() }
         footer.onQuit     = { [weak self] in self?.onQuit?() }

@@ -1,6 +1,6 @@
 import AppKit
 
-/// Non-interactive section header — e.g. "NETWORK" or "ROUTER".
+/// Non-interactive section header — e.g. "NETWORK", "ROUTER", or "DIAGNOSTICS".
 final class MenuSectionLabelView: NSView {
 
     private let label = NSTextField(labelWithString: "")
