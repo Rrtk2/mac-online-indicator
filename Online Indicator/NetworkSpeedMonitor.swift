@@ -9,11 +9,13 @@ final class NetworkSpeedMonitor {
         var downloadMbps: Double?
         var uploadMbps:   Double?
         var pingMs:       Double?
+        var pingHistory:  [PingSample] = []
     }
 
     var snapshotHandler: ((Snapshot) -> Void)?
     var measuringChangedHandler: ((Bool) -> Void)?
     private(set) var snapshot = Snapshot()
+    private let pingHistory = PingHistory()
 
     private let queue = DispatchQueue(label: "com.onlineindicator.speedmonitor", qos: .utility)
     private var downloadTask: URLSessionDataTask?
@@ -64,11 +66,18 @@ final class NetworkSpeedMonitor {
     // MARK: - Ping (pushed from AppState on every connectivity check)
 
     func updatePing(_ ms: Double) {
+        pingHistory.record(ms)
         snapshot.pingMs = ms
+        snapshot.pingHistory = pingHistory.currentSamples
         let snap = snapshot
         DispatchQueue.main.async { [weak self] in
             self?.snapshotHandler?(snap)
         }
+    }
+
+    func resetPingHistory() {
+        pingHistory.reset()
+        snapshot.pingHistory = []
     }
 
     // MARK: - Speed measurement

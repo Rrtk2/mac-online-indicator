@@ -17,6 +17,7 @@ struct OnlineIndicatorApp: App {
 
 // MARK: - App Delegate
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationManagerDelegate {
 
     private var statusItem: NSStatusItem!
@@ -130,6 +131,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
         menuBuilder.onRefreshSpeed = { AppState.shared.forceRefreshSpeed() }
         menuBuilder.onOpenSettings = { [weak self] in self?.windowCoordinator.openSettings() }
         menuBuilder.onQuit         = { NSApplication.shared.terminate(nil) }
+        menuBuilder.onTraceroute = { [weak self] in
+            guard let self else { return }
+            self.statusItem.menu?.cancelTracking()
+            self.windowCoordinator.openTraceroute(to: ConnectivityChecker.tracerouteHost)
+        }
+        menuBuilder.onDNSLookup = { [weak self] in
+            guard let self else { return }
+            self.statusItem.menu?.cancelTracking()
+            self.windowCoordinator.openDNSLookup(to: ConnectivityChecker.tracerouteHost)
+        }
+        menuBuilder.onPing = { [weak self] in
+            guard let self else { return }
+            self.statusItem.menu?.cancelTracking()
+            let gateway = IPAddressProvider.current().gateway
+            self.windowCoordinator.openPing(to: gateway)
+        }
+        menuBuilder.onTCPPortCheck = { [weak self] in
+            guard let self else { return }
+            self.statusItem.menu?.cancelTracking()
+            self.windowCoordinator.openTCPPortCheck(
+                host: ConnectivityChecker.tracerouteHost,
+                port: ConnectivityChecker.diagnosticPort
+            )
+        }
 
         let menu = menuBuilder.build()
         menu.delegate = self
@@ -164,6 +189,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
         // Menu open always gets a fresh snapshot — this is a user-initiated action.
         let addresses = IPAddressProvider.current()
         updateMenuAddresses(addresses)
+        menuBuilder.updateDiagnosticsTargets(
+            host: ConnectivityChecker.tracerouteHost,
+            gateway: addresses.gateway,
+            endpoint: ConnectivityChecker.diagnosticEndpoint
+        )
+        menuBuilder.refreshPingChart()
         fetchExternalData()
         menuBuilder.applyVisibilityPreferences()
     }
@@ -176,6 +207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
 
     private func resetHoverViews(in view: NSView) {
         (view as? MenuHoverView)?.resetHighlight()
+        (view as? MenuPingChartView)?.clearHover()
         view.subviews.forEach { resetHoverViews(in: $0) }
     }
 

@@ -11,6 +11,7 @@ enum MenuLayout {
     static let ringStrokeWidth:        CGFloat = 2.5
     static let highlightCornerRadius:  CGFloat = 4
     static let rowHeight:              CGFloat = 30
+    static let pingChartHeight:        CGFloat = 44
 }
 
 /// RSSI thresholds (dBm) and mapping constants for the WiFi strength ring.

@@ -9,6 +9,28 @@ final class ConnectivityChecker {
         return saved.isEmpty ? defaultURLString : saved
     }
 
+    /// Host used for outbound diagnostics such as traceroute.
+    static var tracerouteHost: String {
+        guard let url = URL(string: monitoringURLString),
+              let host = url.host,
+              !host.isEmpty else {
+            return "captive.apple.com"
+        }
+        return host
+    }
+
+    /// TCP port derived from the monitoring URL (explicit port, else 80 for http / 443 otherwise).
+    static var diagnosticPort: Int {
+        guard let url = URL(string: monitoringURLString) else { return 443 }
+        if let port = url.port { return port }
+        return url.scheme?.lowercased() == "http" ? 80 : 443
+    }
+
+    /// Host:port label for diagnostics menu rows.
+    static var diagnosticEndpoint: String {
+        "\(tracerouteHost):\(diagnosticPort)"
+    }
+
     private var currentTask: URLSessionDataTask?
 
     private let session: URLSession = {

@@ -11,9 +11,14 @@ final class MenuBuilder: NSObject {
 
     private var heroHeaderView: MenuHeroHeaderView?
     private var statsBarView:   MenuStatsBarView?
+    private var pingChartView:  MenuPingChartView?
     private var ipv4RowView:    MenuInfoRowView?
     private var ipv6RowView:    MenuInfoRowView?
     private var gatewayRowView: MenuInfoRowView?
+    private var tracerouteRowView: MenuActionRowView?
+    private var dnsLookupRowView:  MenuActionRowView?
+    private var pingRowView:       MenuActionRowView?
+    private var tcpPortRowView:    MenuActionRowView?
 
     private var ipv4MenuItem:            NSMenuItem?
     private var ipv6MenuItem:            NSMenuItem?
@@ -31,6 +36,7 @@ final class MenuBuilder: NSObject {
     private var lastWifiName:        String?
     private var isVPNActive:         Bool = false
     private var currentStatus:       AppState.ConnectionStatus = .noNetwork
+    private var lastPingHistory:     [PingSample] = []
 
     private var renderedDNSServers: [String] = []
 
@@ -44,6 +50,10 @@ final class MenuBuilder: NSObject {
     var onRefreshSpeed:  (() -> Void)?
     var onOpenSettings:  (() -> Void)?
     var onQuit:          (() -> Void)?
+    var onTraceroute:    (() -> Void)?
+    var onDNSLookup:     (() -> Void)?
+    var onPing:          (() -> Void)?
+    var onTCPPortCheck:  (() -> Void)?
 
     // MARK: - Build
 
@@ -72,6 +82,13 @@ final class MenuBuilder: NSObject {
         let statsItem = NSMenuItem()
         statsItem.view = stats
         m.addItem(statsItem)
+
+        let chart = MenuPingChartView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.pingChartHeight))
+        pingChartView = chart
+        let chartItem = NSMenuItem()
+        chartItem.view      = chart
+        chartItem.isEnabled = false
+        m.addItem(chartItem)
 
         // 3. NETWORK section
         let networkSep = NSMenuItem.separator()
@@ -132,7 +149,43 @@ final class MenuBuilder: NSObject {
         dnsItem.tag  = dnsTag
         m.addItem(dnsItem)
 
-        // 5. Footer
+        // 5. DIAGNOSTICS section
+        m.addItem(.separator())
+        m.addItem(makeSectionItem(title: "DIAGNOSTICS"))
+
+        let traceRow = MenuActionRowView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.rowHeight))
+        traceRow.configure(label: "Traceroute", detail: ConnectivityChecker.tracerouteHost)
+        traceRow.onAction = { [weak self] in self?.onTraceroute?() }
+        tracerouteRowView = traceRow
+        let traceItem = NSMenuItem()
+        traceItem.view = traceRow
+        m.addItem(traceItem)
+
+        let dnsLookupRow = MenuActionRowView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.rowHeight))
+        dnsLookupRow.configure(label: "DNS Lookup", detail: ConnectivityChecker.tracerouteHost)
+        dnsLookupRow.onAction = { [weak self] in self?.onDNSLookup?() }
+        dnsLookupRowView = dnsLookupRow
+        let dnsLookupItem = NSMenuItem()
+        dnsLookupItem.view = dnsLookupRow
+        m.addItem(dnsLookupItem)
+
+        let pingRow = MenuActionRowView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.rowHeight))
+        pingRow.configure(label: "Ping", detail: menuNoValue)
+        pingRow.onAction = { [weak self] in self?.onPing?() }
+        pingRowView = pingRow
+        let pingItem = NSMenuItem()
+        pingItem.view = pingRow
+        m.addItem(pingItem)
+
+        let tcpRow = MenuActionRowView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.rowHeight))
+        tcpRow.configure(label: "TCP Port Check", detail: ConnectivityChecker.diagnosticEndpoint)
+        tcpRow.onAction = { [weak self] in self?.onTCPPortCheck?() }
+        tcpPortRowView = tcpRow
+        let tcpItem = NSMenuItem()
+        tcpItem.view = tcpRow
+        m.addItem(tcpItem)
+
+        // 6. Footer
         let footer = MenuFooterView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: 44))
         footer.onSettings = { [weak self] in self?.onOpenSettings?() }
         footer.onQuit     = { [weak self] in self?.onQuit?() }
@@ -217,6 +270,13 @@ final class MenuBuilder: NSObject {
         renderedDNSServers = servers
     }
 
+    func updateDiagnosticsTargets(host: String, gateway: String?, endpoint: String) {
+        tracerouteRowView?.configure(label: "Traceroute", detail: host)
+        dnsLookupRowView?.configure(label: "DNS Lookup", detail: host)
+        pingRowView?.configure(label: "Ping", detail: gateway ?? menuNoValue)
+        tcpPortRowView?.configure(label: "TCP Port Check", detail: endpoint)
+    }
+
     // MARK: - Visibility Preferences
 
     func applyVisibilityPreferences() {
@@ -257,6 +317,12 @@ final class MenuBuilder: NSObject {
 
     func clearSpeedSnapshot() {
         statsBarView?.reset()
+        lastPingHistory = []
+        pingChartView?.reset()
+    }
+
+    func refreshPingChart() {
+        pingChartView?.update(samples: lastPingHistory)
     }
 
     private var isMeasuringSpeed = false
@@ -267,7 +333,9 @@ final class MenuBuilder: NSObject {
     }
 
     func updateSpeedSnapshot(_ snapshot: NetworkSpeedMonitor.Snapshot) {
+        lastPingHistory = snapshot.pingHistory
         statsBarView?.updatePing(snapshot.pingMs)
+        pingChartView?.update(samples: snapshot.pingHistory)
         guard !isMeasuringSpeed else { return }
         statsBarView?.updateSpeed(download: snapshot.downloadMbps, upload: snapshot.uploadMbps)
     }

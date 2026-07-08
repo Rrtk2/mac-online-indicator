@@ -127,6 +127,7 @@ final class AppState {
         lastWifiSSID = addresses.wifiName
 
         if ssidChanged {
+            speedMonitor.resetPingHistory()
             speedResetHandler?()
         }
 
