@@ -11,6 +11,7 @@ final class MenuBuilder: NSObject {
 
     private var heroHeaderView: MenuHeroHeaderView?
     private var statsBarView:   MenuStatsBarView?
+    private var pingChartView:  MenuPingChartView?
     private var ipv4RowView:    MenuInfoRowView?
     private var ipv6RowView:    MenuInfoRowView?
     private var gatewayRowView: MenuInfoRowView?
@@ -32,6 +33,7 @@ final class MenuBuilder: NSObject {
     private var lastWifiName:        String?
     private var isVPNActive:         Bool = false
     private var currentStatus:       AppState.ConnectionStatus = .noNetwork
+    private var lastPingHistory:     [PingSample] = []
 
     private var renderedDNSServers: [String] = []
 
@@ -74,6 +76,13 @@ final class MenuBuilder: NSObject {
         let statsItem = NSMenuItem()
         statsItem.view = stats
         m.addItem(statsItem)
+
+        let chart = MenuPingChartView(frame: NSRect(x: 0, y: 0, width: MenuLayout.menuWidth, height: MenuLayout.pingChartHeight))
+        pingChartView = chart
+        let chartItem = NSMenuItem()
+        chartItem.view      = chart
+        chartItem.isEnabled = false
+        m.addItem(chartItem)
 
         // 3. NETWORK section
         let networkSep = NSMenuItem.separator()
@@ -275,6 +284,12 @@ final class MenuBuilder: NSObject {
 
     func clearSpeedSnapshot() {
         statsBarView?.reset()
+        lastPingHistory = []
+        pingChartView?.reset()
+    }
+
+    func refreshPingChart() {
+        pingChartView?.update(samples: lastPingHistory)
     }
 
     private var isMeasuringSpeed = false
@@ -285,7 +300,9 @@ final class MenuBuilder: NSObject {
     }
 
     func updateSpeedSnapshot(_ snapshot: NetworkSpeedMonitor.Snapshot) {
+        lastPingHistory = snapshot.pingHistory
         statsBarView?.updatePing(snapshot.pingMs)
+        pingChartView?.update(samples: snapshot.pingHistory)
         guard !isMeasuringSpeed else { return }
         statsBarView?.updateSpeed(download: snapshot.downloadMbps, upload: snapshot.uploadMbps)
     }

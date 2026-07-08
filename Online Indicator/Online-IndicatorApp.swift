@@ -171,6 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
         let addresses = IPAddressProvider.current()
         updateMenuAddresses(addresses)
         menuBuilder.updateTracerouteTarget(ConnectivityChecker.tracerouteHost)
+        menuBuilder.refreshPingChart()
         fetchExternalData()
         menuBuilder.applyVisibilityPreferences()
     }
