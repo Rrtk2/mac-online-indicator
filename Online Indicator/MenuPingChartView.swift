@@ -7,8 +7,16 @@ final class MenuPingChartView: NSView {
 
     private let avgLabel = NSTextField(labelWithString: menuNoValue)
     private let maxLabel = NSTextField(labelWithString: menuNoValue)
+    private let hoverLabel = NSTextField(labelWithString: "")
 
     private let statsWidth: CGFloat = 56
+    private var trackingArea: NSTrackingArea?
+    private var hoveredIndex: Int?
+
+    private struct ChartLayout {
+        let chartRect: NSRect
+        let plotted: [(sample: PingSample, point: NSPoint)]
+    }
 
     override var isFlipped: Bool { true }
 
@@ -31,6 +39,14 @@ final class MenuPingChartView: NSView {
             addSubview(label)
         }
 
+        hoverLabel.font      = .systemFont(ofSize: 10, weight: .semibold)
+        hoverLabel.isHidden  = true
+        hoverLabel.isBezeled = false
+        hoverLabel.drawsBackground = false
+        hoverLabel.isEditable = false
+        hoverLabel.isSelectable = false
+        addSubview(hoverLabel)
+
         NSLayoutConstraint.activate([
             avgLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -MenuLayout.heroLeadingPadding),
             avgLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
@@ -50,6 +66,13 @@ final class MenuPingChartView: NSView {
         samples = []
         avgLabel.stringValue = menuNoValue
         maxLabel.stringValue = menuNoValue
+        clearHover()
+        needsDisplay = true
+    }
+
+    func clearHover() {
+        hoveredIndex = nil
+        hoverLabel.isHidden = true
         needsDisplay = true
     }
 
@@ -98,14 +121,12 @@ final class MenuPingChartView: NSView {
         color(for: max(ms1, ms2))
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
+    private func makeLayout() -> ChartLayout? {
         let chartRect = chartRect
-        guard chartRect.width > 0, chartRect.height > 0 else { return }
+        guard chartRect.width > 0, chartRect.height > 0 else { return nil }
 
         let visible = visibleSamples()
-        guard !visible.isEmpty else { return }
+        guard !visible.isEmpty else { return nil }
 
         let now = Date()
         let windowStart = now.addingTimeInterval(-PingHistory.window)
@@ -123,22 +144,97 @@ final class MenuPingChartView: NSView {
         }
         let range = maxMs - minMs
 
-        func point(for sample: PingSample) -> NSPoint {
+        let plotted = visible.map { sample -> (sample: PingSample, point: NSPoint) in
             let t = sample.date.timeIntervalSince(windowStart) / PingHistory.window
             let x = chartRect.minX + CGFloat(t.clamped(to: 0...1)) * chartRect.width
             let yNorm = (sample.ms - minMs) / range
             let y = chartRect.maxY - CGFloat(yNorm.clamped(to: 0...1)) * chartRect.height
-            return NSPoint(x: x, y: y)
+            return (sample, NSPoint(x: x, y: y))
         }
 
-        let plotted = visible.map { (sample: $0, point: point(for: $0)) }
+        return ChartLayout(chartRect: chartRect, plotted: plotted)
+    }
+
+    private func nearestIndex(to x: CGFloat, in plotted: [(sample: PingSample, point: NSPoint)]) -> Int {
+        var bestIndex = 0
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+        for (index, item) in plotted.enumerated() {
+            let distance = abs(item.point.x - x)
+            if distance < bestDistance {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
+    private func positionHoverLabel(for item: (sample: PingSample, point: NSPoint), in chartRect: NSRect) {
+        hoverLabel.stringValue = String(format: "%.0f ms", item.sample.ms)
+        hoverLabel.textColor = color(for: item.sample.ms)
+        hoverLabel.sizeToFit()
+
+        var x = item.point.x - hoverLabel.bounds.width / 2
+        let maxX = chartRect.maxX - hoverLabel.bounds.width
+        x = x.clamped(to: chartRect.minX...maxX)
+
+        var y = item.point.y - hoverLabel.bounds.height - 5
+        if y < chartRect.minY {
+            y = min(item.point.y + 5, chartRect.maxY - hoverLabel.bounds.height)
+        }
+
+        hoverLabel.frame = NSRect(x: x, y: y, width: hoverLabel.bounds.width, height: hoverLabel.bounds.height)
+        hoverLabel.isHidden = false
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        guard let layout = makeLayout(), layout.chartRect.contains(location) else {
+            clearHover()
+            return
+        }
+
+        let index = nearestIndex(to: location.x, in: layout.plotted)
+        guard hoveredIndex != index else { return }
+
+        hoveredIndex = index
+        positionHoverLabel(for: layout.plotted[index], in: layout.chartRect)
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        clearHover()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard let layout = makeLayout() else { return }
+        let chartRect = layout.chartRect
+        let plotted = layout.plotted
 
         if plotted.count == 1 {
-            let sample = plotted[0]
-            let segColor = color(for: sample.sample.ms)
-            let dot = NSBezierPath(ovalIn: NSRect(x: sample.point.x - 2, y: sample.point.y - 2, width: 4, height: 4))
+            let item = plotted[0]
+            let segColor = color(for: item.sample.ms)
+            let radius: CGFloat = hoveredIndex == 0 ? 3.5 : 2
+            let dot = NSBezierPath(ovalIn: NSRect(
+                x: item.point.x - radius, y: item.point.y - radius,
+                width: radius * 2, height: radius * 2
+            ))
             segColor.setFill()
             dot.fill()
+            drawHoverGuideIfNeeded(in: chartRect, point: item.point, ms: item.sample.ms, index: 0)
             return
         }
 
@@ -164,9 +260,28 @@ final class MenuPingChartView: NSView {
             segColor.setStroke()
             linePath.stroke()
         }
+
+        if let hoveredIndex, hoveredIndex < plotted.count {
+            let item = plotted[hoveredIndex]
+            drawHoverGuideIfNeeded(in: chartRect, point: item.point, ms: item.sample.ms, index: hoveredIndex)
+        }
     }
 
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    private func drawHoverGuideIfNeeded(in chartRect: NSRect, point: NSPoint, ms: Double, index: Int) {
+        guard hoveredIndex == index else { return }
+
+        NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
+        let guide = NSBezierPath()
+        guide.move(to: NSPoint(x: point.x, y: chartRect.minY))
+        guide.line(to: NSPoint(x: point.x, y: chartRect.maxY))
+        guide.lineWidth = 1
+        guide.stroke()
+
+        let segColor = color(for: ms)
+        let dot = NSBezierPath(ovalIn: NSRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7))
+        segColor.setFill()
+        dot.fill()
+    }
 
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .group }

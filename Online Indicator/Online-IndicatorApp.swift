@@ -207,6 +207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, CLLocationMa
 
     private func resetHoverViews(in view: NSView) {
         (view as? MenuHoverView)?.resetHighlight()
+        (view as? MenuPingChartView)?.clearHover()
         view.subviews.forEach { resetHoverViews(in: $0) }
     }
 
