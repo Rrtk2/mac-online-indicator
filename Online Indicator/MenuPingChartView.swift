@@ -81,6 +81,23 @@ final class MenuPingChartView: NSView {
         )
     }
 
+    private enum PingThreshold {
+        static let good: Double = 50
+        static let fair: Double = 100
+    }
+
+    private func color(for ms: Double) -> NSColor {
+        switch ms {
+        case ..<PingThreshold.good: return .systemGreen
+        case ..<PingThreshold.fair: return .systemOrange
+        default:                    return .systemRed
+        }
+    }
+
+    private func segmentColor(ms1: Double, ms2: Double) -> NSColor {
+        color(for: max(ms1, ms2))
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
@@ -114,32 +131,39 @@ final class MenuPingChartView: NSView {
             return NSPoint(x: x, y: y)
         }
 
-        let linePath = NSBezierPath()
-        linePath.lineWidth = 1.5
-        linePath.lineCapStyle = .round
-        linePath.lineJoinStyle = .round
+        let plotted = visible.map { (sample: $0, point: point(for: $0)) }
 
-        let fillPath = NSBezierPath()
-        let first = point(for: visible[0])
-        linePath.move(to: first)
-        fillPath.move(to: NSPoint(x: first.x, y: chartRect.maxY))
-        fillPath.line(to: first)
-
-        for sample in visible.dropFirst() {
-            let p = point(for: sample)
-            linePath.line(to: p)
-            fillPath.line(to: p)
+        if plotted.count == 1 {
+            let sample = plotted[0]
+            let segColor = color(for: sample.sample.ms)
+            let dot = NSBezierPath(ovalIn: NSRect(x: sample.point.x - 2, y: sample.point.y - 2, width: 4, height: 4))
+            segColor.setFill()
+            dot.fill()
+            return
         }
 
-        let last = point(for: visible[visible.count - 1])
-        fillPath.line(to: NSPoint(x: last.x, y: chartRect.maxY))
-        fillPath.close()
+        for index in 0..<(plotted.count - 1) {
+            let start = plotted[index]
+            let end = plotted[index + 1]
+            let segColor = segmentColor(ms1: start.sample.ms, ms2: end.sample.ms)
 
-        NSColor.systemGreen.withAlphaComponent(0.12).setFill()
-        fillPath.fill()
+            let fillPath = NSBezierPath()
+            fillPath.move(to: NSPoint(x: start.point.x, y: chartRect.maxY))
+            fillPath.line(to: start.point)
+            fillPath.line(to: end.point)
+            fillPath.line(to: NSPoint(x: end.point.x, y: chartRect.maxY))
+            fillPath.close()
+            segColor.withAlphaComponent(0.12).setFill()
+            fillPath.fill()
 
-        NSColor.systemGreen.setStroke()
-        linePath.stroke()
+            let linePath = NSBezierPath()
+            linePath.lineWidth = 1.5
+            linePath.lineCapStyle = .round
+            linePath.move(to: start.point)
+            linePath.line(to: end.point)
+            segColor.setStroke()
+            linePath.stroke()
+        }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
